@@ -7,6 +7,10 @@ export function mapRole(role, email) {
     return 'owner';
   }
 
+  if (!role) {
+    return null;
+  }
+
   if (role === 'coowner') {
     return 'co-owner';
   }
@@ -15,7 +19,7 @@ export function mapRole(role, email) {
     return 'co-owner';
   }
 
-  return role || 'viewer';
+  return role;
 }
 
 export async function ensureUserProfile(firebaseUser) {
