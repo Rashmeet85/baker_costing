@@ -45,16 +45,18 @@ export async function ensureUserProfile(firebaseUser) {
 }
 
 export async function ensureBakeryForUser(firebaseUser) {
-  const bakeryRef = doc(collection(db, 'bakeries'), DEFAULT_BAKERY_ID);
-  await setDoc(
-    bakeryRef,
-    {
-      name: BRAND_NAME,
-      createdBy: OWNER_EMAIL,
-      updatedAt: serverTimestamp()
-    },
-    { merge: true }
-  );
+  if (firebaseUser.email === OWNER_EMAIL) {
+    const bakeryRef = doc(collection(db, 'bakeries'), DEFAULT_BAKERY_ID);
+    await setDoc(
+      bakeryRef,
+      {
+        name: BRAND_NAME,
+        createdBy: OWNER_EMAIL,
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    );
+  }
 
   await updateDoc(doc(db, 'users', firebaseUser.uid), {
     activeBakeryId: DEFAULT_BAKERY_ID
