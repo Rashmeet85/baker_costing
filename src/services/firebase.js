@@ -20,6 +20,17 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
+const missingFirebaseEnv = Object.entries(firebaseConfig)
+  .filter(([, value]) => !value)
+  .map(([key]) => `VITE_FIREBASE_${key.replace(/[A-Z]/g, (match) => `_${match}`).toUpperCase()}`);
+
+if (missingFirebaseEnv.length) {
+  throw new Error(
+    `Missing Firebase environment variables: ${missingFirebaseEnv.join(', ')}. ` +
+      'Add them to your local .env and Vercel project settings, then redeploy.'
+  );
+}
+
 const app = initializeApp(firebaseConfig);
 
 export const db = initializeFirestore(app, {
@@ -28,7 +39,18 @@ export const db = initializeFirestore(app, {
   })
 });
 
-export const auth = getAuth(app);
+let authInstance;
+
+try {
+  authInstance = getAuth(app);
+} catch (error) {
+  throw new Error(
+    'Firebase Auth failed to initialize. Check VITE_FIREBASE_API_KEY and confirm the web app config in Firebase and Vercel matches the same project.',
+    { cause: error }
+  );
+}
+
+export const auth = authInstance;
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
