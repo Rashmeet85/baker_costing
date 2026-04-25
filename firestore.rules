@@ -1,0 +1,146 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner() {
+      return isSignedIn() && request.auth.token.email == 'h.r17731785@gmail.com';
+    }
+
+    function currentUserEmail() {
+      return isSignedIn() ? request.auth.token.email : null;
+    }
+
+    function currentRole() {
+      return isOwner()
+        ? 'owner'
+        : currentUserEmail() != null
+          && exists(/databases/$(database)/documents/roles/$(currentUserEmail()))
+            ? get(/databases/$(database)/documents/roles/$(currentUserEmail())).data.role
+            : null;
+    }
+
+    function canManageRecipes() {
+      return isOwner() || currentRole() in ['coowner', 'admin'];
+    }
+
+    function canManageRoles() {
+      return isOwner() || currentRole() == 'coowner';
+    }
+
+    function canUseBusinessApp() {
+      return isSignedIn() && (isOwner() || currentRole() in ['coowner', 'admin', 'viewer']);
+    }
+
+    function businessDocBakeryMatches() {
+      return request.resource.data.bakeryId == 'kaurs-cakery';
+    }
+
+    function existingBusinessDocBakeryMatches() {
+      return resource.data.bakeryId == 'kaurs-cakery';
+    }
+
+    function incomingRole() {
+      return request.resource.data.role;
+    }
+
+    function existingRole(userEmail) {
+      return userEmail == 'h.r17731785@gmail.com'
+        ? 'owner'
+        : resource == null
+          ? null
+          : resource.data.role;
+    }
+
+    function isOwnRoleDoc(userEmail) {
+      return isSignedIn() && request.auth.token.email == userEmail;
+    }
+
+    function canWriteRole(userEmail) {
+      return isOwner()
+        || (
+          currentRole() == 'coowner'
+          && !isOwnRoleDoc(userEmail)
+          && existingRole(userEmail) != 'owner'
+          && existingRole(userEmail) != 'coowner'
+          && incomingRole() in ['admin', 'viewer']
+        );
+    }
+
+    function canDeleteRole(userEmail) {
+      return isOwner()
+        || (
+          currentRole() == 'coowner'
+          && !isOwnRoleDoc(userEmail)
+          && existingRole(userEmail) in ['admin', 'viewer']
+        );
+    }
+
+    function isOwnUserDoc(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /recipes/{recipeId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && canManageRecipes();
+    }
+
+    match /users/{userId} {
+      allow read, write: if isOwnUserDoc(userId);
+    }
+
+    match /roles/{userEmail} {
+      allow read: if isSignedIn() && (canManageRoles() || currentUserEmail() == userEmail);
+      allow create, update: if isSignedIn() && canWriteRole(userEmail);
+      allow delete: if isSignedIn() && canDeleteRole(userEmail);
+    }
+
+    match /bakeries/{bakeryId} {
+      allow read: if canUseBusinessApp();
+      allow create, update: if isOwner();
+    }
+
+    match /costings/{costingId} {
+      allow read: if canUseBusinessApp() && existingBusinessDocBakeryMatches();
+      allow create, update: if canManageRecipes() && businessDocBakeryMatches();
+    }
+
+    match /sales/{saleId} {
+      allow read: if canUseBusinessApp() && existingBusinessDocBakeryMatches();
+      allow create, update: if canManageRecipes() && businessDocBakeryMatches();
+    }
+
+    match /ingredients/{ingredientId} {
+      allow read: if canUseBusinessApp() && existingBusinessDocBakeryMatches() && resource.data.userId == request.auth.uid;
+      allow create, update: if canManageRecipes() && businessDocBakeryMatches() && request.resource.data.userId == request.auth.uid;
+    }
+
+    match /costingRecipes/{recipeId} {
+      allow read: if canUseBusinessApp() && existingBusinessDocBakeryMatches();
+      allow create, update: if canManageRecipes() && businessDocBakeryMatches();
+      allow delete: if canManageRecipes() && existingBusinessDocBakeryMatches();
+    }
+
+    match /users/{userId}/customRecipes/{recipeId} {
+      allow read, write: if isOwnUserDoc(userId);
+    }
+
+    match /users/{userId}/linkedRecipes/{recipeId} {
+      allow read, write: if isOwnUserDoc(userId);
+    }
+
+    match /users/{userId}/ingredientPrices/{priceId} {
+      allow read, write: if isOwnUserDoc(userId);
+    }
+
+    match /users/{userId}/recipeProfiles/{profileId} {
+      allow read, write: if isOwnUserDoc(userId);
+    }
+
+    match /users/{userId}/sales/{saleId} {
+      allow read, write: if isOwnUserDoc(userId);
+    }
+  }
+}
